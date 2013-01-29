@@ -1,6 +1,19 @@
-Simple utility to send hbase metrics to Riemann.  
-Runs under JRuby, and uses the nice jmx4r library to gather stats exposed over JMX.  
-`gem install riemann-hbase`  
-`riemann-hbase -h my.riemann.server --server-type regionserver --jmx-port 10102`
-  
+# riemann-jmx
+
+A utility to send JMX metrics to Riemann.
+
+
+## Installation
+
+As jruby is used to gain access to the MBean server, you need to [install it](https://github.com/jruby/jruby/wiki/GettingStarted) and then run a slightly modified gem install:
+
+```sh
+jruby -S gem install jmx4r riemann-client riemann-jmx
+```
+
+## Usage and Configuration
+
+```sh
+jruby $(which riemann-jmx) /path/to/riemann-jmx.yaml
+```
 

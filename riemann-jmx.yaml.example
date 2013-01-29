@@ -1,7 +1,15 @@
-jmx:
-    host: localhost
-    port: 9999
-queries:
+riemann : 
+    host     : localhost
+    port     : 5555
+    interval : 5
+
+jmx : 
+    host : localhost
+    port : 9999
+
+defaults : {}
+
+queries : 
 -   service     : "kafka.broker.topics.all"
     obj         : "kafka:type=kafka.BrokerAllTopicStat"
     attr        : [ BytesIn, BytesOut, FailedFetchRequest, FailedProduceRequest, MessagesIn ]

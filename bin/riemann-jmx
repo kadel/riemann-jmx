@@ -1,72 +1,140 @@
-#!/usr/bin/env ruby
+#!/usr/bin/env jruby
 
-require 'riemann/tools'
-require 'jmx4r'
 require 'yaml'
+require 'jmx4r'
+require 'riemann/client'
 
-# Riemann Client to gather stats from JMX
-
-class Riemann::Tools::JMX
-    include Riemann::Tools
-    
-    opt :config_file, "YAML config file", :default => "riemann-jmx.yaml"
-    
-    def self.config
-        begin
-            @config = YAML.load_file opts[:config_file]
-        rescue
-            puts "Unable to read config file!"
-            raise
-        end
-    end
-    
-    def report(event)
-        if options[:tag]
-            event[:tags] = event.fetch('tags', []) << options[:tag]
-        event[:ttl]  = options[:ttl] if options[:ttl]
-        riemann << event
-    end
-    
-    def report_stat(bean, attr, args)
-        report {
-                :service     => args[:service] || "#{bean.object_name}:#{attr}",
-                :state       => args[:state]   || 'ok',
-                :metric      => bean.send(attr.to_s.snake_case),
-                :description => args[:description],
-                :tags        => args[:tags]
-            }.delete_if { |k, v| v == nil }
-    end
-    
-    def send_all_stats
-        jmx_host = config[:jmx][:host]
-        jmx_port = config[:jmx][:port]
-        
-        begin
-            JMX::MBean.establish_connection :host => jmx_host, :port => jmx_port
-        rescue Exception => e
-            report {
-                    service     => "jmx.#{jmx_host}:#{jmx_port}",
-                    state       => :error,
-                    description => "Could not connect to JMX, #{e.message}",
-                    tags        => [ "error" ]
+module Riemann
+    module Tools
+        class Riemann::Tools::JMXClient
+            
+            ### Config
+            
+            def config
+                return @config if @config
+                config_file = ARGV[0] || "riemann-jmx.yaml"
+                # $stderr.puts "Reading config file at '#{config_file}'...\n"
+                begin
+                    @config = YAML.load_file config_file
+                    # $stderr.puts @config
+                rescue => e
+                    $stderr.puts "Unable to read config file at #{config_file}!\n"
+                    $stderr.puts "#{e.class}: #{e.message}\n"
+                    raise e
+                end
+                @config
+            end
+            
+            def options
+                @options ||= { :host => '127.0.0.1', :port => 5555, :interval => 5 }.merge( config['riemann'] || {} )
+            end
+            
+            def defaults
+                @defaults ||= config['defaults'] or {}
+            end
+            
+            def queries
+                @queries ||= config['queries'] or []
+            end
+            
+            
+            ### Gather Metrics
+            
+            def send_all_stats
+                jmx_host = config['jmx']['host']
+                jmx_port = config['jmx']['port']
+                # $stderr.puts "RMI Server: #{jmx_host}:#{jmx_port}\n\n"
+                begin
+                    JMX::MBean.establish_connection :host => jmx_host, :port => jmx_port
+                rescue Exception => e
+                    $stderr.puts "#{e.class}: #{e.message}\n"
+                    report(
+                        :service     => "jmx.#{jmx_host}:#{jmx_port}",
+                        :state       => 'error',
+                        :description => "Could not connect to JMX: #{e.class}, #{e.message}",
+                        :tags        => ([ "error", "jmx" ] + (defaults['tags'] || [])).uniq
+                    )
+                    return
+                end
+                
+                queries.each { |query|
+                    beans = JMX::MBean.find_all_by_name query['obj']
+                    attrs = query['attr']
+                    beans.each { |bean|
+                        attrs = bean.attributes.values if !attrs || attrs == '*'
+                        attrs.each { |attr|
+                            report_stat bean, attr, defaults.merge(query)
+                        }
+                    }
                 }
-            return
+            end
+            
+            def report_stat(bean, attr, args)
+                service = args['service'] || bean.object_name.to_s
+                service += ".#{attr}"
+                desc    = args['description']
+                tags    = args['tags']
+                begin
+                    report(
+                        :service     => service,
+                        :state       => args['state'] || 'ok',
+                        :metric      => bean.send(attr.to_s.snake_case),
+                        :description => desc,
+                        :tags        => tags
+                    )
+                rescue => e
+                    $stderr.puts "error! #{e.class} #{e}\n"
+                    report(
+                        :service     => service,
+                        :state       => 'error',
+                        :description => desc,
+                        :tags        => ([ "error", "jmx" ] + (tags || [])).uniq
+                    )
+                end
+            end
+            
+            
+            ### Reporting
+            
+            def report(event)
+                event.delete_if { |k, v| v == nil }
+                # $stderr.puts "sending event: #{event}\n"
+                riemann << event
+            end
+            
+            def tick
+                send_all_stats
+            end
+            
+            def riemann
+                @riemann ||= Riemann::Client.new(
+                    :host => options['host'],
+                    :port => options['port']
+                )
+            end
+            alias :r :riemann
+            
+            def run
+                # $stderr.puts "#{self}.run!"
+                t0 = Time.now
+                interval = options['interval']
+                loop do
+                    begin
+                        # $stderr.puts "tick! #{t0} @ #{interval}"
+                        tick
+                    rescue => e
+                        $stderr.puts "#{e.class} #{e}\n#{e.backtrace.join "\n"}"
+                    end
+                    
+                    sleep(interval - ((Time.now - t0) % interval))
+                end
+            end
+            
+            def self.run
+                new.run
+            end
         end
-        
-        config[:queries].each { |query|
-            bean  = JMX::MBean.find_by_name query[:obj]
-            attrs = query[:attr]
-            attrs = bean.attributes.keys if !attrs || attrs == '*'
-            attrs.each { |attr|
-                report_stat bean, attr, query
-            }
-        }
     end
-    
-    def tick
-        send_all_stats
-    end
-    
 end
 
-
+Riemann::Tools::JMXClient.run
