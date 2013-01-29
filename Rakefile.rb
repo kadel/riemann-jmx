@@ -8,22 +8,22 @@ ENV['COPYFILE_DISABLE'] = 'true'
  
 # Gemspec
 gemspec = Gem::Specification.new do |s|
-  s.rubyforge_project = 'riemann-hbase'
- 
-  s.name = 'riemann-hbase'
-  s.version = '0.0.2'
-  s.author = 'Mohit Chawla'
-  s.email = 'mohit.chawla.binary@gmail.com'
-  s.homepage = 'https://github.com/alcy/riemann-hbase'
+  s.rubyforge_project = 'riemann-jmx'
+  
+  s.name     = 'riemann-jmx'
+  s.version  = '0.0.1'
+  s.author   = 'David Schoonover'
+  s.email    = 'dsc@less.ly'
+  s.homepage = 'https://github.com/dsc/riemann-jmx'
   s.platform = Gem::Platform::RUBY
-  s.summary = 'Utility to submit hbase metrics to Riemann'
-
+  s.summary  = 'Utility to submit jmx metrics to Riemann'
+  
   s.add_dependency 'jmx4r'
   s.add_dependency 'riemann-tools'
-
+  
   s.files = FileList['bin/*', 'LICENSE'].to_a
   s.executables |= Dir.entries('bin/')
- 
+  
   s.required_ruby_version = '>= 1.8.7'
 end
 

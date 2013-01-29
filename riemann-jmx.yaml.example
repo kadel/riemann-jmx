@@ -1,0 +1,31 @@
+jmx:
+    host: localhost
+    port: 9999
+queries:
+-   service     : "kafka.broker.topics.all"
+    obj         : "kafka:type=kafka.BrokerAllTopicStat"
+    attr        : [ BytesIn, BytesOut, FailedFetchRequest, FailedProduceRequest, MessagesIn ]
+    description : "Kafka Broker Stats for All Topics."
+    tags        : [ kafka ]
+
+-   obj     : "kafka:type=kafka.LogFlushStats"
+    attr    : [ AvgFlushMs, FlushesPerSecond, MaxFlushMs, NumFlushes, TotalFlushMs ]
+
+-   obj     : "kafka:type=kafka.SocketServerStats"
+    attr    : 
+    -   AvgFetchRequestMs
+    -   AvgProduceRequestMs
+    -   BytesReadPerSecond
+    -   BytesWrittenPerSecond
+    -   FetchRequestsPerSecond
+    -   MaxFetchRequestMs
+    -   MaxProduceRequestMs
+    -   NumFetchRequests
+    -   NumProduceRequests
+    -   ProduceRequestsPerSecond
+    -   TotalBytesRead
+    -   TotalBytesWritten
+    -   TotalFetchRequestMs
+    -   TotalProduceRequestMs
+
+

@@ -1,0 +1,72 @@
+#!/usr/bin/env ruby
+
+require 'riemann/tools'
+require 'jmx4r'
+require 'yaml'
+
+# Riemann Client to gather stats from JMX
+
+class Riemann::Tools::JMX
+    include Riemann::Tools
+    
+    opt :config_file, "YAML config file", :default => "riemann-jmx.yaml"
+    
+    def self.config
+        begin
+            @config = YAML.load_file opts[:config_file]
+        rescue
+            puts "Unable to read config file!"
+            raise
+        end
+    end
+    
+    def report(event)
+        if options[:tag]
+            event[:tags] = event.fetch('tags', []) << options[:tag]
+        event[:ttl]  = options[:ttl] if options[:ttl]
+        riemann << event
+    end
+    
+    def report_stat(bean, attr, args)
+        report {
+                :service     => args[:service] || "#{bean.object_name}:#{attr}",
+                :state       => args[:state]   || 'ok',
+                :metric      => bean.send(attr.to_s.snake_case),
+                :description => args[:description],
+                :tags        => args[:tags]
+            }.delete_if { |k, v| v == nil }
+    end
+    
+    def send_all_stats
+        jmx_host = config[:jmx][:host]
+        jmx_port = config[:jmx][:port]
+        
+        begin
+            JMX::MBean.establish_connection :host => jmx_host, :port => jmx_port
+        rescue Exception => e
+            report {
+                    service     => "jmx.#{jmx_host}:#{jmx_port}",
+                    state       => :error,
+                    description => "Could not connect to JMX, #{e.message}",
+                    tags        => [ "error" ]
+                }
+            return
+        end
+        
+        config[:queries].each { |query|
+            bean  = JMX::MBean.find_by_name query[:obj]
+            attrs = query[:attr]
+            attrs = bean.attributes.keys if !attrs || attrs == '*'
+            attrs.each { |attr|
+                report_stat bean, attr, query
+            }
+        }
+    end
+    
+    def tick
+        send_all_stats
+    end
+    
+end
+
+
