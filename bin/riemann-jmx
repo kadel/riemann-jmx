@@ -101,6 +101,7 @@ module Riemann
                         service += ".#{composite_key}"
                     end
                     report(
+                        :host        => config['jmx']['host'],
                         :service     => service,
                         :state       => args['state'] || 'ok',
                         :metric      => metric,
@@ -110,6 +111,7 @@ module Riemann
                 rescue => e
                     $stderr.puts "error! #{e.class} #{e}\n"
                     report(
+                        :host        => config['jmx']['host'],
                         :service     => service,
                         :state       => 'error',
                         :description => desc,
