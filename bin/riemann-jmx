@@ -76,7 +76,7 @@ module Riemann
                                 # a is Hash -> search all keys in that hash
                                 if (a.instance_of? Hash) and (a.keys.include? attr[1])
                                     data = bean.send(attr[0])
-                                    # this si composite key, so we need to digg on level deeper
+                                    # this is composite key, so we need to digg on level deeper
                                     a[attr[1]].each{ |composite_key|
                                         # $stderr.puts "#{bean.object_name.to_s}.#{attr[1]}.#{composite_key}=#{data.get(composite_key).to_s}"
                                         report_stat bean, attr[1], composite_key, defaults.merge(query)
