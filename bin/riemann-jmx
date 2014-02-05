@@ -101,7 +101,8 @@ module Riemann
             end
             
             def report_stat(bean, attr, composite_key, args)
-                service = args['service'] || bean.object_name.to_s
+                service = options['service_prefix'] || ""
+                service += args['service'] || bean.object_name.to_s
                 service += ".#{attr}"
                 desc    = args['description']
                 tags    = args['tags']
