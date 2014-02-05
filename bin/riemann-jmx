@@ -4,21 +4,29 @@ require 'yaml'
 require 'jmx4r'
 require 'riemann/client'
 
+java_import 'java.util.concurrent.Callable'
+java_import 'java.util.concurrent.FutureTask'
+java_import 'java.util.concurrent.LinkedBlockingQueue'
+java_import 'java.util.concurrent.ThreadPoolExecutor'
+java_import 'java.util.concurrent.TimeUnit'
+
 module Riemann
     module Tools
         class Riemann::Tools::JMXClient
-            
-            ### Config
+            include Callable
+
+            def initialize(config = "riemann-conf.yaml")
+                @config_file = config
+            end
             
             def config
                 return @config if @config
-                config_file = ARGV[0] || "riemann-jmx.yaml"
-                # $stderr.puts "Reading config file at '#{config_file}'...\n"
+                $stderr.puts "Reading config file at '#{@config_file}'...\n"
                 begin
-                    @config = YAML.load_file config_file
+                    @config = YAML.load_file @config_file
                     # $stderr.puts @config
                 rescue => e
-                    $stderr.puts "Unable to read config file at #{config_file}!\n"
+                    $stderr.puts "Unable to read config file at #{@config_file}!\n"
                     $stderr.puts "#{e.class}: #{e.message}\n"
                     raise e
                 end
@@ -145,13 +153,13 @@ module Riemann
             end
             alias :r :riemann
             
-            def run
-                # $stderr.puts "#{self}.run!"
+            def call
+                #$stderr.puts "#{self}.run!"
                 t0 = Time.now
                 interval = options['interval']
                 loop do
                     begin
-                        # $stderr.puts "tick! #{t0} @ #{interval}"
+                        #$stderr.puts "#{@config_file} - tick! #{t0} @ #{interval}"
                         tick
                     rescue => e
                         $stderr.puts "#{e.class} #{e}\n#{e.backtrace.join "\n"}"
@@ -160,12 +168,29 @@ module Riemann
                     sleep(interval - ((Time.now - t0) % interval))
                 end
             end
-            
-            def self.run
-                new.run
-            end
         end
     end
 end
 
-Riemann::Tools::JMXClient.run
+clients = Array.new
+
+executor = ThreadPoolExecutor.new(
+    ARGV.length, # core_pool_tread
+    ARGV.length, # max_pool_threads
+    60, # keep_alive_time
+    TimeUnit::SECONDS,
+    LinkedBlockingQueue.new
+)
+
+ARGV.each{ |arg|
+    task = FutureTask.new(Riemann::Tools::JMXClient.new(arg))
+    executor.execute(task)
+    clients << task
+}
+
+# Wait for all threads to complete
+clients.each{ |c|
+    c.get
+}
+
+
