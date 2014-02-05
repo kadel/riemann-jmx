@@ -26,7 +26,11 @@ module Riemann
             end
             
             def options
-                @options ||= { :host => '127.0.0.1', :port => 5555, :interval => 5 }.merge( config['riemann'] || {} )
+                @options ||= { :host => '127.0.0.1',
+                               :port => 5555,
+                               :interval => 5,
+                               :use_jmxhost => false,
+                }.merge( config['riemann'] || {} )
             end
             
             def defaults
@@ -101,7 +105,7 @@ module Riemann
                         service += ".#{composite_key}"
                     end
                     report(
-                        :host        => config['jmx']['host'],
+                        :host        => options['use_jmxhost'] ? config['jmx']['host'] : nil,
                         :service     => service,
                         :state       => args['state'] || 'ok',
                         :metric      => metric,
@@ -125,7 +129,7 @@ module Riemann
             
             def report(event)
                 event.delete_if { |k, v| v == nil }
-                # $stderr.puts "sending event: #{event}\n"
+                #$stderr.puts "sending event: #{event}\n"
                 riemann << event
             end
             

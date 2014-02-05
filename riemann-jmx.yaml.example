@@ -2,6 +2,8 @@ riemann :
     host     : localhost
     port     : 5555
     interval : 5
+    # use jmx['host'] as reporting host to riemann
+    use_jmxhost: false
 
 jmx : 
     host : localhost
