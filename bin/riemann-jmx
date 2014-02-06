@@ -38,6 +38,7 @@ module Riemann
                                :port => 5555,
                                :interval => 5,
                                :use_jmxhost => false,
+                               :obj_in_service => true
                 }.merge( config['riemann'] || {} )
             end
             
@@ -102,8 +103,11 @@ module Riemann
             
             def report_stat(bean, attr, composite_key, args)
                 service = options['service_prefix'] || ""
-                service += args['service'] || bean.object_name.to_s
-                service += ".#{attr}"
+                if options['obj_in_service']
+                    service += args['service'] || bean.object_name.to_s
+                    service += "."
+                end
+                service += "#{attr}"
                 desc    = args['description']
                 tags    = args['tags']
                 begin

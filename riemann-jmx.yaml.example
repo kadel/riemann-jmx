@@ -5,7 +5,9 @@ riemann :
     # use jmx['host'] as reporting host to riemann
     use_jmxhost: false
     # add this prefix to all services
-    service_prefix: "datanode"
+    service_prefix: "datanode."
+    # use object name from JMX in service name
+    obj_in_service: false
 
 jmx : 
     host : localhost
