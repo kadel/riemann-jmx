@@ -3,6 +3,7 @@
 require 'yaml'
 require 'jmx4r'
 require 'riemann/client'
+require 'json'
 
 java_import 'java.util.concurrent.Callable'
 java_import 'java.util.concurrent.FutureTask'
@@ -24,7 +25,7 @@ module Riemann
                 $stderr.puts "Reading config file at '#{@config_file}'...\n"
                 begin
                     @config = YAML.load_file @config_file
-                    # $stderr.puts @config
+                    #$stderr.puts @config
                 rescue => e
                     $stderr.puts "Unable to read config file at #{@config_file}!\n"
                     $stderr.puts "#{e.class}: #{e.message}\n"
@@ -83,7 +84,7 @@ module Riemann
                                 if (a.instance_of? String) and (a==attr[1])
                                     data = bean.send(attr[0])
                                     # $stderr.puts "#{bean.object_name.to_s}.#{attr[1]}=#{data.to_s}"
-                                    report_stat bean, attr[1], nil, defaults.merge(query)
+                                    send_stat bean.with_object.to_s, data, nil, defaults.merge(query)
                                 end
 
                                 # a is Hash -> search all keys in that hash
@@ -91,8 +92,21 @@ module Riemann
                                     data = bean.send(attr[0])
                                     # this is composite key, so we need to digg on level deeper
                                     a[attr[1]].each{ |composite_key|
-                                        # $stderr.puts "#{bean.object_name.to_s}.#{attr[1]}.#{composite_key}=#{data.get(composite_key).to_s}"
-                                        report_stat bean, attr[1], composite_key, defaults.merge(query)
+                                        if composite_key.instance_of? Hash and composite_key.keys.include? "_json" 
+                                            # this keys is marked as containing json data
+                                            j = JSON.parse(data)
+                                            composite_key["_json"].each { |k|
+                                                val = j
+                                                k.split("/").each{ |l|
+                                                    val = val[l]
+                                                }
+                                                k_str = k.split("/").join(".")
+                                                send_stat bean.object_name.to_s, "#{attr[1]}.#{k_str}", val, defaults.merge(query)
+                                            }
+                                        else
+                                            # $stderr.puts "#{bean.object_name.to_s}.#{attr[1]}.#{composite_key}=#{data.get(composite_key).to_s}"
+                                            send_stat bean.object_name.to_s, "#{attr[1]}.#{composite_key}", data.get(composite_key), defaults.merge(query)
+                                        end
                                     }
                                 end
                             }
@@ -100,7 +114,39 @@ module Riemann
                     }
                 }
             end
-            
+
+
+            def send_stat(obj_name, attr, metric, args)
+                service = options['service_prefix'] || ""
+                if options['obj_in_service']
+                    service += args['service'] || obj_name
+                    service += "."
+                end
+                service += "#{attr}"
+                desc    = args['description']
+                tags    = args['tags']
+                begin
+                    report(
+                        :host        => options['use_jmxhost'] ? config['jmx']['host'] : nil,
+                        :service     => service,
+                        :state       => args['state'] || 'ok',
+                        :metric      => metric,
+                        :description => desc,
+                        :tags        => tags
+                    )
+                rescue => e
+                    $stderr.puts "error! #{e.class} #{e}\n"
+                    report(
+                        :host        => config['jmx']['host'],
+                        :service     => service,
+                        :state       => 'error',
+                        :description => desc,
+                        :tags        => ([ "error", "jmx" ] + (tags || [])).uniq
+                    )
+                end
+            end
+ 
+
             def report_stat(bean, attr, composite_key, args)
                 service = options['service_prefix'] || ""
                 if options['obj_in_service']
