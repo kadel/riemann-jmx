@@ -26,6 +26,15 @@ queries :
   - obj: "Hadoop:service=DataNode,name=DataNodeActivity-*"
     attr: 
       - ReadBlockOpAvgTime
-
     tags: [hadoop, jmx]
+
+  - obj: "hadoop:service=JobTracker,name=JobTrackerInfo"
+    attr: 
+      - SummaryJson:
+          # this key contains json data
+          - _json: 
+            - alive
+            - slots/map_slots_used
+            - jobs
+    tags: [jmx, datanode, hadoop]
 
