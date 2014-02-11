@@ -84,7 +84,7 @@ module Riemann
                                 if (a.instance_of? String) and (a==attr[1])
                                     data = bean.send(attr[0])
                                     # $stderr.puts "#{bean.object_name.to_s}.#{attr[1]}=#{data.to_s}"
-                                    send_stat(bean.with_object.to_s, data, nil, defaults.merge(query))
+                                    send_stat(bean.object_name.to_s, attr[1], data, defaults.merge(query))
                                 end
 
                                 # a is Hash -> search all keys in that hash
