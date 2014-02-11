@@ -84,7 +84,7 @@ module Riemann
                                 if (a.instance_of? String) and (a==attr[1])
                                     data = bean.send(attr[0])
                                     # $stderr.puts "#{bean.object_name.to_s}.#{attr[1]}=#{data.to_s}"
-                                    send_stat bean.with_object.to_s, data, nil, defaults.merge(query)
+                                    send_stat(bean.with_object.to_s, data, nil, defaults.merge(query))
                                 end
 
                                 # a is Hash -> search all keys in that hash
@@ -96,16 +96,19 @@ module Riemann
                                             # this keys is marked as containing json data
                                             j = JSON.parse(data)
                                             composite_key["_json"].each { |k|
+                                                # each key is path in nasted arrays
+                                                # each level is separated by "/"
                                                 val = j
                                                 k.split("/").each{ |l|
                                                     val = val[l]
                                                 }
+                                                # we want to report path in json separated by "."
                                                 k_str = k.split("/").join(".")
-                                                send_stat bean.object_name.to_s, "#{attr[1]}.#{k_str}", val, defaults.merge(query)
+                                                send_stat(bean.object_name.to_s, "#{attr[1]}.#{k_str}", val, defaults.merge(query))
                                             }
                                         else
                                             # $stderr.puts "#{bean.object_name.to_s}.#{attr[1]}.#{composite_key}=#{data.get(composite_key).to_s}"
-                                            send_stat bean.object_name.to_s, "#{attr[1]}.#{composite_key}", data.get(composite_key), defaults.merge(query)
+                                            send_stat(bean.object_name.to_s, "#{attr[1]}.#{composite_key}", data.get(composite_key), defaults.merge(query))
                                         end
                                     }
                                 end
@@ -146,46 +149,8 @@ module Riemann
                 end
             end
  
-
-            def report_stat(bean, attr, composite_key, args)
-                service = options['service_prefix'] || ""
-                if options['obj_in_service']
-                    service += args['service'] || bean.object_name.to_s
-                    service += "."
-                end
-                service += "#{attr}"
-                desc    = args['description']
-                tags    = args['tags']
-                begin
-                    if composite_key == nil
-                        metric = bean.send(attr.to_s.snake_case)
-                    else
-                        metric = bean.send(attr.to_s.snake_case).get(composite_key)
-                        service += ".#{composite_key}"
-                    end
-                    report(
-                        :host        => options['use_jmxhost'] ? config['jmx']['host'] : nil,
-                        :service     => service,
-                        :state       => args['state'] || 'ok',
-                        :metric      => metric,
-                        :description => desc,
-                        :tags        => tags
-                    )
-                rescue => e
-                    $stderr.puts "error! #{e.class} #{e}\n"
-                    report(
-                        :host        => config['jmx']['host'],
-                        :service     => service,
-                        :state       => 'error',
-                        :description => desc,
-                        :tags        => ([ "error", "jmx" ] + (tags || [])).uniq
-                    )
-                end
-            end
-            
-            
             ### Reporting
-            
+            #
             def report(event)
                 event.delete_if { |k, v| v == nil }
                 #$stderr.puts "sending event: #{event}\n"
